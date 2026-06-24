@@ -15,6 +15,22 @@
   var STORAGE_KEY = 'oceanPinUnlocked';
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // Some phones (depending on system language / keyboard) send native-script
+  // digits instead of plain ASCII 0-9 when the numeric keypad is used —
+  // e.g. Arabic-Indic ٠-٩, Persian/Urdu ۰-۹, Devanagari ०-९, or fullwidth ０-９.
+  // Without converting those first, a correctly-typed PIN can look "wrong"
+  // on those devices because the digit characters never match ASCII 0-9.
+  function normalizeDigits(str) {
+    return str.replace(/[\u0660-\u0669\u06F0-\u06F9\u0966-\u096F\uFF10-\uFF19]/g, function (ch) {
+      var code = ch.charCodeAt(0);
+      if (code >= 0x0660 && code <= 0x0669) return String(code - 0x0660); // Arabic-Indic
+      if (code >= 0x06F0 && code <= 0x06F9) return String(code - 0x06F0); // Extended Arabic-Indic (Persian/Urdu)
+      if (code >= 0x0966 && code <= 0x096F) return String(code - 0x0966); // Devanagari
+      if (code >= 0xFF10 && code <= 0xFF19) return String(code - 0xFF10); // Fullwidth
+      return ch;
+    });
+  }
+
   function ready(fn) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', fn);
@@ -126,7 +142,7 @@
     }
 
     function attemptUnlock() {
-      var val = input.value.replace(/\D/g, '');
+      var val = normalizeDigits(input.value).replace(/\D/g, '');
       if (val.length !== PIN_LENGTH || val !== PIN_VALUE) {
         shakeError();
         return;
@@ -135,7 +151,7 @@
     }
 
     input.addEventListener('input', function () {
-      input.value = input.value.replace(/\D/g, '').slice(0, PIN_LENGTH);
+      input.value = normalizeDigits(input.value).replace(/\D/g, '').slice(0, PIN_LENGTH);
       clearError();
       render();
       if (input.value.length === PIN_LENGTH) attemptUnlock();
